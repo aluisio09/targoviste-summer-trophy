@@ -86,7 +86,8 @@ export async function generateGroupMatches(groupId: string, categoryId: string) 
     .select('id')
     .eq('group_id', groupId)
 
-  if (!teams || teams.length < 2) throw new Error('Minimum 2 echipe necesare')
+  if (!teams || teams.length < 3) throw new Error('Minimum 3 echipe necesare')
+  if (teams.length > 6) throw new Error('Maximum 6 echipe per grupă')
 
   // Round-robin: each team plays every other once
   const inserts = []
@@ -173,33 +174,64 @@ export async function generateBrackets(categoryId: string) {
 
   // Group teams by position across all groups
   const byPosition = groupByPosition(standingsByGroup)
-  const teamsPerPosition = groups.length // N groups → N teams per position bracket
 
-  // Create one bracket per position level
-  const positions = Array.from(byPosition.keys()).sort((a, b) => a - b)
+  // ── Bracket principal: locurile 1 și 2 din toate grupele ──
+  // 2 grupe → 4 echipe → "Locurile 1-4"
+  // 3 grupe → 6 echipe → "Locurile 1-6" (nextPow2=8, 2 bye-uri)
+  // 4 grupe → 8 echipe → "Locurile 1-8"
+  const pos1Teams = byPosition.get(1) ?? []
+  const pos2Teams = byPosition.get(2) ?? []
+  const champTeams = [...pos1Teams, ...pos2Teams]
+  const champEnd = champTeams.length
 
-  for (const pos of positions) {
-    const teamsAtPosition = byPosition.get(pos)!
-    const posStart = (pos - 1) * teamsPerPosition + 1
-    const posEnd = pos * teamsPerPosition
-    const bracketName = `Locurile ${posStart}-${posEnd}`
+  if (champTeams.length > 0) {
+    const { data: champBracket, error: cErr } = await supabase
+      .from('brackets')
+      .insert({
+        category_id: categoryId,
+        name: `Locurile 1-${champEnd}`,
+        position_start: 1,
+        position_end: champEnd,
+        teams_count: champTeams.length,
+        status: 'active',
+      })
+      .select()
+      .single()
+
+    if (cErr) throw new Error(cErr.message)
+    await generateBracketMatches(champBracket.id, categoryId, champTeams)
+  }
+
+  // ── Bracket-uri de consolare: pozițiile 3, 4, 5, 6 ──
+  // Dacă grupele au mărimi diferite, o poziție poate avea mai puțin de numGroups echipe
+  // (ex. poziția 5 cu 1 echipă când o grupă are 5 și alta 4 → bracket "Locul 9")
+  const maxPos = Math.max(...Array.from(byPosition.keys()))
+  let nextStart = champEnd + 1
+
+  for (let pos = 3; pos <= maxPos; pos++) {
+    const teamsAtPos = byPosition.get(pos)
+    if (!teamsAtPos?.length) continue
+
+    const posEnd = nextStart + teamsAtPos.length - 1
+    const bracketName =
+      teamsAtPos.length === 1 ? `Locul ${nextStart}` : `Locurile ${nextStart}-${posEnd}`
 
     const { data: bracket, error: bErr } = await supabase
       .from('brackets')
       .insert({
         category_id: categoryId,
         name: bracketName,
-        position_start: posStart,
+        position_start: nextStart,
         position_end: posEnd,
-        teams_count: teamsAtPosition.length,
+        teams_count: teamsAtPos.length,
         status: 'active',
       })
       .select()
       .single()
 
     if (bErr) throw new Error(bErr.message)
-
-    await generateBracketMatches(bracket.id, categoryId, teamsAtPosition)
+    await generateBracketMatches(bracket.id, categoryId, teamsAtPos)
+    nextStart = posEnd + 1
   }
 
   // Mark group stage as complete
