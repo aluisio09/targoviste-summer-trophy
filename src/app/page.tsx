@@ -27,6 +27,9 @@ export default async function HomePage() {
           <p className="mt-2 text-green-200 text-sm md:text-base">
             Turneu de fotbal pentru juniori · Târgoviște
           </p>
+          <p className="mt-1 text-green-400 text-xs">
+            Powered by KRUK România
+          </p>
         </div>
       </header>
 
@@ -66,6 +69,8 @@ export default async function HomePage() {
 
       <footer className="bg-[#0f3d1f] text-green-300 text-center text-xs py-4 mt-auto">
         Targoviste Summer Trophy · Rezultate live
+        <br />
+        <span className="text-green-500">Powered by KRUK România</span>
       </footer>
     </div>
   )

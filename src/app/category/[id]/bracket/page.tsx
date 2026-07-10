@@ -92,6 +92,8 @@ export default async function BracketPage({ params }: PageProps) {
 
       <footer className="bg-[#0f3d1f] text-green-300 text-center text-xs py-3">
         Targoviste Summer Trophy
+        <br />
+        <span className="text-green-500">Powered by KRUK România</span>
       </footer>
     </div>
   )
