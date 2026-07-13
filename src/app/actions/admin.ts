@@ -77,6 +77,65 @@ export async function deleteTeam(teamId: string) {
 
 // ── Group Matches ─────────────────────────────────────────
 
+/**
+ * Generează ordinea meciurilor round-robin astfel încât nicio echipă
+ * să nu joace două meciuri consecutiv (metoda cercului + reordonare greedy).
+ *
+ * Garanții matematice:
+ *  N=3,4 → minim 2 conflicte (imposibil de evitat — demonstrabil)
+ *  N=5,6,7 → 0 conflicte
+ */
+function buildBalancedSchedule(teamIds: string[]): [string, string][] {
+  const n = teamIds.length
+  if (n < 2) return []
+
+  // Metoda cercului: dacă N impar adăugăm un slot "bye" (null) pentru a-l face par
+  const padded: (string | null)[] = n % 2 === 0 ? [...teamIds] : [...teamIds, null]
+  const N = padded.length
+  const fixed = padded[0]
+  const rotating = padded.slice(1)
+
+  const rounds: [string, string][][] = []
+
+  for (let r = 0; r < N - 1; r++) {
+    const round: [string, string][] = []
+
+    // Prima pereche: fixed vs rotating[r]
+    const opp = rotating[r % (N - 1)]
+    if (fixed !== null && opp !== null) round.push([fixed as string, opp as string])
+
+    // Perechile rămase
+    for (let i = 1; i < N / 2; i++) {
+      const h = rotating[(r + i) % (N - 1)]
+      const a = rotating[(r + N - 1 - i) % (N - 1)]
+      if (h !== null && a !== null) round.push([h as string, a as string])
+    }
+
+    rounds.push(round)
+  }
+
+  // Aplatizare cu optimizare la granița dintre ture:
+  // începem fiecare tură cu un meci care nu conține echipele din meciul anterior
+  const schedule: [string, string][] = []
+
+  for (const round of rounds) {
+    if (schedule.length === 0) {
+      schedule.push(...round)
+      continue
+    }
+    const [lh, la] = schedule[schedule.length - 1]
+    const conflict = new Set([lh, la])
+    const freeIdx = round.findIndex(([h, a]) => !conflict.has(h) && !conflict.has(a))
+    if (freeIdx > 0) {
+      schedule.push(round[freeIdx], ...round.slice(0, freeIdx), ...round.slice(freeIdx + 1))
+    } else {
+      schedule.push(...round)
+    }
+  }
+
+  return schedule
+}
+
 export async function generateGroupMatches(groupId: string, categoryId: string) {
   await requireAdmin()
   const supabase = createServiceClient()
@@ -89,21 +148,17 @@ export async function generateGroupMatches(groupId: string, categoryId: string) 
   if (!teams || teams.length < 3) throw new Error('Minimum 3 echipe necesare')
   if (teams.length > 7) throw new Error('Maximum 7 echipe per grupă')
 
-  // Round-robin: each team plays every other once
-  const inserts = []
-  let matchNumber = 1
-  for (let i = 0; i < teams.length; i++) {
-    for (let j = i + 1; j < teams.length; j++) {
-      inserts.push({
-        group_id: groupId,
-        category_id: categoryId,
-        home_team_id: teams[i].id,
-        away_team_id: teams[j].id,
-        match_number: matchNumber++,
-        status: 'scheduled',
-      })
-    }
-  }
+  const teamIds = teams.map((t) => t.id)
+  const orderedPairs = buildBalancedSchedule(teamIds)
+
+  const inserts = orderedPairs.map(([homeId, awayId], idx) => ({
+    group_id: groupId,
+    category_id: categoryId,
+    home_team_id: homeId,
+    away_team_id: awayId,
+    match_number: idx + 1,
+    status: 'scheduled',
+  }))
 
   const { error } = await supabase.from('group_matches').insert(inserts)
   if (error) throw new Error(error.message)
