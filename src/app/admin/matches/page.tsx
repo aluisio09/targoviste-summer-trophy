@@ -181,85 +181,101 @@ export default function MatchesAdminPage() {
               </tr>
             </thead>
             <tbody>
-              {matches.map((match) => (
-                <tr key={match.id} className="border-t border-gray-100 hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-400 font-medium">{match.match_number}</td>
-                  <td className="px-4 py-3">
-                    <span className="font-semibold text-gray-800">{match.home_team?.name}</span>
-                    <span className="mx-2 text-gray-300">vs</span>
-                    <span className="font-semibold text-gray-800">{match.away_team?.name}</span>
+              {Array.from(
+                matches.reduce((acc, m) => {
+                  const r = Math.ceil((m.match_number ?? 0) / 2)
+                  if (!acc.has(r)) acc.set(r, [])
+                  acc.get(r)!.push(m)
+                  return acc
+                }, new Map<number, GroupMatch[]>()).entries()
+              ).flatMap(([roundNum, roundMatches]) => [
+                <tr key={`rh-${roundNum}`} className="bg-gray-50 border-t-2 border-gray-200">
+                  <td colSpan={6} className="px-4 py-1.5">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                      Runda {roundNum}
+                    </span>
                   </td>
-                  <td className="px-4 py-3 text-center">{statusBadge(match.status)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-col gap-1">
-                      <input
-                        type="date"
-                        value={schedules[match.id]?.date ?? ''}
-                        onChange={(e) => setSchedules((prev) => ({ ...prev, [match.id]: { ...prev[match.id], date: e.target.value } }))}
-                        onBlur={() => handleScheduleBlur(match.id)}
-                        className="border border-gray-200 rounded px-1.5 py-1 text-xs text-gray-600 w-32"
-                      />
-                      <input
-                        type="time"
-                        value={schedules[match.id]?.time ?? ''}
-                        onChange={(e) => setSchedules((prev) => ({ ...prev, [match.id]: { ...prev[match.id], time: e.target.value } }))}
-                        onBlur={() => handleScheduleBlur(match.id)}
-                        className="border border-gray-200 rounded px-1.5 py-1 text-xs text-gray-600 w-20"
-                      />
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1 justify-center">
-                      <input
-                        type="number"
-                        min="0"
-                        max="99"
-                        value={scores[match.id]?.home ?? ''}
-                        onChange={(e) => setScores((prev) => ({ ...prev, [match.id]: { ...prev[match.id], home: e.target.value } }))}
-                        className="w-12 border border-gray-300 rounded px-2 py-1 text-center font-bold text-sm"
-                      />
-                      <span className="text-gray-400 font-bold">-</span>
-                      <input
-                        type="number"
-                        min="0"
-                        max="99"
-                        value={scores[match.id]?.away ?? ''}
-                        onChange={(e) => setScores((prev) => ({ ...prev, [match.id]: { ...prev[match.id], away: e.target.value } }))}
-                        className="w-12 border border-gray-300 rounded px-2 py-1 text-center font-bold text-sm"
-                      />
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1 justify-center flex-wrap">
-                      {match.status !== 'live' && match.status !== 'finished' && (
+                </tr>,
+                ...roundMatches.map((match) => (
+                  <tr key={match.id} className="border-t border-gray-100 hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-400 font-medium">{match.match_number}</td>
+                    <td className="px-4 py-3">
+                      <span className="font-semibold text-gray-800">{match.home_team?.name}</span>
+                      <span className="mx-2 text-gray-300">vs</span>
+                      <span className="font-semibold text-gray-800">{match.away_team?.name}</span>
+                    </td>
+                    <td className="px-4 py-3 text-center">{statusBadge(match.status)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1">
+                        <input
+                          type="date"
+                          value={schedules[match.id]?.date ?? ''}
+                          onChange={(e) => setSchedules((prev) => ({ ...prev, [match.id]: { ...prev[match.id], date: e.target.value } }))}
+                          onBlur={() => handleScheduleBlur(match.id)}
+                          className="border border-gray-200 rounded px-1.5 py-1 text-xs text-gray-600 w-32"
+                        />
+                        <input
+                          type="time"
+                          value={schedules[match.id]?.time ?? ''}
+                          onChange={(e) => setSchedules((prev) => ({ ...prev, [match.id]: { ...prev[match.id], time: e.target.value } }))}
+                          onBlur={() => handleScheduleBlur(match.id)}
+                          className="border border-gray-200 rounded px-1.5 py-1 text-xs text-gray-600 w-20"
+                        />
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1 justify-center">
+                        <input
+                          type="number"
+                          min="0"
+                          max="99"
+                          value={scores[match.id]?.home ?? ''}
+                          onChange={(e) => setScores((prev) => ({ ...prev, [match.id]: { ...prev[match.id], home: e.target.value } }))}
+                          className="w-12 border border-gray-300 rounded px-2 py-1 text-center font-bold text-sm"
+                        />
+                        <span className="text-gray-400 font-bold">-</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="99"
+                          value={scores[match.id]?.away ?? ''}
+                          onChange={(e) => setScores((prev) => ({ ...prev, [match.id]: { ...prev[match.id], away: e.target.value } }))}
+                          className="w-12 border border-gray-300 rounded px-2 py-1 text-center font-bold text-sm"
+                        />
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1 justify-center flex-wrap">
+                        {match.status !== 'live' && match.status !== 'finished' && (
+                          <button
+                            onClick={() => handleSetLive(match.id)}
+                            disabled={isPending}
+                            className="text-xs bg-red-50 text-red-600 border border-red-200 px-2 py-1 rounded hover:bg-red-100"
+                          >
+                            🔴 Live
+                          </button>
+                        )}
+                        {match.status === 'live' && (
+                          <button
+                            onClick={() => handleSaveScore(match.id, 'live')}
+                            disabled={isPending}
+                            className="text-xs bg-orange-50 text-orange-600 border border-orange-200 px-2 py-1 rounded hover:bg-orange-100"
+                          >
+                            💾 Actualizează
+                          </button>
+                        )}
                         <button
-                          onClick={() => handleSetLive(match.id)}
+                          onClick={() => handleSaveScore(match.id, 'finished')}
                           disabled={isPending}
-                          className="text-xs bg-red-50 text-red-600 border border-red-200 px-2 py-1 rounded hover:bg-red-100"
+                          className="text-xs bg-green-50 text-green-700 border border-green-200 px-2 py-1 rounded hover:bg-green-100 font-medium"
                         >
-                          🔴 Live
+                          ✅ Final
                         </button>
-                      )}
-                      {match.status === 'live' && (
-                        <button
-                          onClick={() => handleSaveScore(match.id, 'live')}
-                          disabled={isPending}
-                          className="text-xs bg-orange-50 text-orange-600 border border-orange-200 px-2 py-1 rounded hover:bg-orange-100"
-                        >
-                          💾 Actualizează
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleSaveScore(match.id, 'finished')}
-                        disabled={isPending}
-                        className="text-xs bg-green-50 text-green-700 border border-green-200 px-2 py-1 rounded hover:bg-green-100 font-medium"
-                      >
-                        ✅ Final
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                      </div>
+                    </td>
+                  </tr>
+                )),
+              ])}
             </tbody>
           </table>
         </div>
