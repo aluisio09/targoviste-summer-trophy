@@ -217,7 +217,8 @@ export async function generateBrackets(categoryId: string) {
   //   Cu 2 grupe: best1stPlace vs best2ndPlace, 2nd1stPlace vs 2nd2ndPlace
   // Truc: pasăm [r1, r2, r4, r3] → buildSeedOrder(4)=[1,4,2,3]
   //   → arranged=[r1, r3, r2, r4] → Meci1: r1 vs r3, Meci2: r2 vs r4
-  const topCount = Math.min(4, globalRanking.length)
+  // 3 echipe: Final r1 vs r2, r3 bye — NU un bracket de 4 cu r1 bye+r2vr3
+  const topCount = globalRanking.length === 3 ? 2 : Math.min(4, globalRanking.length)
   const topChunk = globalRanking.slice(0, topCount)
   const topEnd = topCount
   const topName = topChunk.length === 1 ? `Locul 1` : `Locurile 1-${topEnd}`
