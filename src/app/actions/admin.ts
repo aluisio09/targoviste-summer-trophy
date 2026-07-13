@@ -78,62 +78,82 @@ export async function deleteTeam(teamId: string) {
 // ── Group Matches ─────────────────────────────────────────
 
 /**
- * Generează ordinea meciurilor round-robin astfel încât nicio echipă
- * să nu joace două meciuri consecutiv (metoda cercului + reordonare greedy).
+ * Grupează meciurile round-robin în runde de câte 2 simultane (2 terenuri):
+ * - Constrângere strictă: în aceeași rundă nicio echipă nu apare de două ori
+ * - Soft: maximizăm suma rundelor de odihnă pentru cele 4 echipe din rundă
  *
- * Garanții matematice:
- *  N=3,4 → minim 2 conflicte (imposibil de evitat — demonstrabil)
- *  N=5,6,7 → 0 conflicte
+ * Returnează sloturi (array de 1 sau 2 meciuri); ultimul slot poate fi de 1
+ * dacă totalul meciurilor este impar.
  */
-function buildBalancedSchedule(teamIds: string[]): [string, string][] {
+function buildBalancedSchedule(teamIds: string[]): [string, string][][] {
   const n = teamIds.length
   if (n < 2) return []
 
-  // Metoda cercului: dacă N impar adăugăm un slot "bye" (null) pentru a-l face par
-  const padded: (string | null)[] = n % 2 === 0 ? [...teamIds] : [...teamIds, null]
-  const N = padded.length
-  const fixed = padded[0]
-  const rotating = padded.slice(1)
+  // Generăm toate perechile posibile
+  const pairs: [string, string][] = []
+  for (let i = 0; i < n; i++)
+    for (let j = i + 1; j < n; j++)
+      pairs.push([teamIds[i], teamIds[j]])
 
-  const rounds: [string, string][][] = []
+  const totalPairs = pairs.length
+  const remaining = new Set(pairs.map((_, k) => k))
+  const lastSlot = new Map<string, number>() // echipă → indexul ultimei runde jucate
+  const slots: [string, string][][] = []
 
-  for (let r = 0; r < N - 1; r++) {
-    const round: [string, string][] = []
+  while (remaining.size > 0) {
+    const si = slots.length
 
-    // Prima pereche: fixed vs rotating[r]
-    const opp = rotating[r % (N - 1)]
-    if (fixed !== null && opp !== null) round.push([fixed as string, opp as string])
-
-    // Perechile rămase
-    for (let i = 1; i < N / 2; i++) {
-      const h = rotating[(r + i) % (N - 1)]
-      const a = rotating[(r + N - 1 - i) % (N - 1)]
-      if (h !== null && a !== null) round.push([h as string, a as string])
+    // Ultimul slot dacă rămâne un singur meci (total impar)
+    if (remaining.size === 1) {
+      const [only] = remaining
+      slots.push([pairs[only]])
+      break
     }
 
-    rounds.push(round)
-  }
+    const rem = [...remaining]
+    let bestScore = -Infinity
+    let bestPair: [number, number] | null = null
 
-  // Aplatizare cu optimizare la granița dintre ture:
-  // începem fiecare tură cu un meci care nu conține echipele din meciul anterior
-  const schedule: [string, string][] = []
+    // Odihnă: echipă care nu a jucat niciodată → totalPairs+1 (maxim); altfel: si - lastSlot
+    const rest = (t: string) => {
+      const last = lastSlot.get(t)
+      return last === undefined ? totalPairs + 1 : si - last
+    }
 
-  for (const round of rounds) {
-    if (schedule.length === 0) {
-      schedule.push(...round)
+    for (let ii = 0; ii < rem.length; ii++) {
+      const [ah, aa] = pairs[rem[ii]]
+      for (let jj = ii + 1; jj < rem.length; jj++) {
+        const [bh, ba] = pairs[rem[jj]]
+
+        // Constrângere strictă: nicio echipă duplicată în aceeași rundă
+        if (ah === bh || ah === ba || aa === bh || aa === ba) continue
+
+        // Scor = suma timpilor de odihnă ai celor 4 echipe
+        const score = rest(ah) + rest(aa) + rest(bh) + rest(ba)
+        if (score > bestScore) {
+          bestScore = score
+          bestPair = [rem[ii], rem[jj]]
+        }
+      }
+    }
+
+    if (!bestPair) {
+      // Fallback teoretic (nu ar trebui să apară)
+      const [first] = remaining
+      slots.push([pairs[first]])
+      remaining.delete(first)
       continue
     }
-    const [lh, la] = schedule[schedule.length - 1]
-    const conflict = new Set([lh, la])
-    const freeIdx = round.findIndex(([h, a]) => !conflict.has(h) && !conflict.has(a))
-    if (freeIdx > 0) {
-      schedule.push(round[freeIdx], ...round.slice(0, freeIdx), ...round.slice(freeIdx + 1))
-    } else {
-      schedule.push(...round)
-    }
+
+    const [mi, mj] = bestPair
+    slots.push([pairs[mi], pairs[mj]])
+    for (const t of [pairs[mi][0], pairs[mi][1], pairs[mj][0], pairs[mj][1]])
+      lastSlot.set(t, si)
+    remaining.delete(mi)
+    remaining.delete(mj)
   }
 
-  return schedule
+  return slots
 }
 
 export async function generateGroupMatches(groupId: string, categoryId: string) {
@@ -149,16 +169,23 @@ export async function generateGroupMatches(groupId: string, categoryId: string) 
   if (teams.length > 7) throw new Error('Maximum 7 echipe per grupă')
 
   const teamIds = teams.map((t) => t.id)
-  const orderedPairs = buildBalancedSchedule(teamIds)
+  const slots = buildBalancedSchedule(teamIds)
 
-  const inserts = orderedPairs.map(([homeId, awayId], idx) => ({
-    group_id: groupId,
-    category_id: categoryId,
-    home_team_id: homeId,
-    away_team_id: awayId,
-    match_number: idx + 1,
-    status: 'scheduled',
-  }))
+  // Aplatizăm sloturile: meciurile 1-2 sunt runda 1, 3-4 runda 2 etc.
+  const inserts: object[] = []
+  let matchNum = 1
+  for (const slot of slots) {
+    for (const [homeId, awayId] of slot) {
+      inserts.push({
+        group_id: groupId,
+        category_id: categoryId,
+        home_team_id: homeId,
+        away_team_id: awayId,
+        match_number: matchNum++,
+        status: 'scheduled',
+      })
+    }
+  }
 
   const { error } = await supabase.from('group_matches').insert(inserts)
   if (error) throw new Error(error.message)
