@@ -133,6 +133,34 @@ export async function setMatchLive(matchId: string) {
   revalidatePath('/admin/matches')
 }
 
+export async function updateGroupMatchSchedule(
+  matchId: string,
+  date: string | null,
+  time: string | null
+) {
+  await requireAdmin()
+  const supabase = createServiceClient()
+  await supabase
+    .from('group_matches')
+    .update({ scheduled_date: date || null, scheduled_time: time || null })
+    .eq('id', matchId)
+  revalidatePath('/admin/matches')
+}
+
+export async function updateBracketMatchSchedule(
+  matchId: string,
+  date: string | null,
+  time: string | null
+) {
+  await requireAdmin()
+  const supabase = createServiceClient()
+  await supabase
+    .from('bracket_matches')
+    .update({ scheduled_date: date || null, scheduled_time: time || null })
+    .eq('id', matchId)
+  revalidatePath('/admin/brackets')
+}
+
 // ── Brackets ──────────────────────────────────────────────
 
 export async function generateBrackets(categoryId: string) {

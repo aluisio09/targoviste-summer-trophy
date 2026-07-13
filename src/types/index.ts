@@ -36,6 +36,7 @@ export interface GroupMatch {
   home_score: number | null
   away_score: number | null
   status: 'scheduled' | 'live' | 'finished'
+  scheduled_date: string | null
   scheduled_time: string | null
   match_number: number | null
   created_at: string
@@ -69,6 +70,7 @@ export interface BracketMatch {
   away_score: number | null
   winner_id: string | null
   status: 'pending' | 'scheduled' | 'live' | 'finished' | 'bye'
+  scheduled_date: string | null
   scheduled_time: string | null
   winner_next_match_id: string | null
   winner_next_slot: 'home' | 'away' | null

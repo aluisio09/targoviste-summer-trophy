@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { generateGroupMatches, updateGroupMatchScore, setMatchLive } from '@/app/actions/admin'
+import { generateGroupMatches, updateGroupMatchScore, setMatchLive, updateGroupMatchSchedule } from '@/app/actions/admin'
 import type { Category, Group, GroupMatch } from '@/types'
 
 export default function MatchesAdminPage() {
@@ -14,6 +14,7 @@ export default function MatchesAdminPage() {
   const [isPending, startTransition] = useTransition()
   const [message, setMessage] = useState('')
   const [scores, setScores] = useState<Record<string, { home: string; away: string }>>({})
+  const [schedules, setSchedules] = useState<Record<string, { date: string; time: string }>>({})
 
   const supabase = createClient()
 
@@ -44,13 +45,19 @@ export default function MatchesAdminPage() {
     const m = (data as GroupMatch[]) ?? []
     setMatches(m)
     const initScores: Record<string, { home: string; away: string }> = {}
+    const initSchedules: Record<string, { date: string; time: string }> = {}
     m.forEach((match) => {
       initScores[match.id] = {
         home: match.home_score?.toString() ?? '',
         away: match.away_score?.toString() ?? '',
       }
+      initSchedules[match.id] = {
+        date: match.scheduled_date ?? '',
+        time: match.scheduled_time ?? '',
+      }
     })
     setScores(initScores)
+    setSchedules(initSchedules)
   }
 
   function flash(msg: string) {
@@ -84,6 +91,18 @@ export default function MatchesAdminPage() {
         flash('Scor actualizat!')
       } catch (err: any) {
         flash(`Eroare: ${err.message}`)
+      }
+    })
+  }
+
+  async function handleScheduleBlur(matchId: string) {
+    const s = schedules[matchId]
+    if (!s) return
+    startTransition(async () => {
+      try {
+        await updateGroupMatchSchedule(matchId, s.date || null, s.time || null)
+      } catch (err: any) {
+        flash(`Eroare orar: ${err.message}`)
       }
     })
   }
@@ -156,6 +175,7 @@ export default function MatchesAdminPage() {
                 <th className="px-4 py-2 text-left">#</th>
                 <th className="px-4 py-2 text-left">Meci</th>
                 <th className="px-4 py-2 text-center">Status</th>
+                <th className="px-4 py-2 text-left">Orar</th>
                 <th className="px-4 py-2 text-center">Scor</th>
                 <th className="px-4 py-2 text-center">Acțiuni</th>
               </tr>
@@ -170,6 +190,24 @@ export default function MatchesAdminPage() {
                     <span className="font-semibold text-gray-800">{match.away_team?.name}</span>
                   </td>
                   <td className="px-4 py-3 text-center">{statusBadge(match.status)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col gap-1">
+                      <input
+                        type="date"
+                        value={schedules[match.id]?.date ?? ''}
+                        onChange={(e) => setSchedules((prev) => ({ ...prev, [match.id]: { ...prev[match.id], date: e.target.value } }))}
+                        onBlur={() => handleScheduleBlur(match.id)}
+                        className="border border-gray-200 rounded px-1.5 py-1 text-xs text-gray-600 w-32"
+                      />
+                      <input
+                        type="time"
+                        value={schedules[match.id]?.time ?? ''}
+                        onChange={(e) => setSchedules((prev) => ({ ...prev, [match.id]: { ...prev[match.id], time: e.target.value } }))}
+                        onBlur={() => handleScheduleBlur(match.id)}
+                        className="border border-gray-200 rounded px-1.5 py-1 text-xs text-gray-600 w-20"
+                      />
+                    </div>
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1 justify-center">
                       <input

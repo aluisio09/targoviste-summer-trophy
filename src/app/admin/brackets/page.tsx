@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { generateBrackets, updateBracketMatchScore } from '@/app/actions/admin'
+import { generateBrackets, updateBracketMatchScore, updateBracketMatchSchedule } from '@/app/actions/admin'
 import type { Category, Bracket, BracketMatch } from '@/types'
 
 export default function BracketsAdminPage() {
@@ -13,6 +13,7 @@ export default function BracketsAdminPage() {
   const [isPending, startTransition] = useTransition()
   const [message, setMessage] = useState('')
   const [scores, setScores] = useState<Record<string, { home: string; away: string }>>({})
+  const [schedules, setSchedules] = useState<Record<string, { date: string; time: string }>>({})
 
   const supabase = createClient()
 
@@ -48,13 +49,19 @@ export default function BracketsAdminPage() {
     const m = (mData as BracketMatch[]) ?? []
     setMatches(m)
     const initScores: Record<string, { home: string; away: string }> = {}
+    const initSchedules: Record<string, { date: string; time: string }> = {}
     m.forEach((match) => {
       initScores[match.id] = {
         home: match.home_score?.toString() ?? '',
         away: match.away_score?.toString() ?? '',
       }
+      initSchedules[match.id] = {
+        date: match.scheduled_date ?? '',
+        time: match.scheduled_time ?? '',
+      }
     })
     setScores(initScores)
+    setSchedules(initSchedules)
   }
 
   function flash(msg: string) {
@@ -72,6 +79,18 @@ export default function BracketsAdminPage() {
         flash('Bracket-uri generate cu succes! Toate echipele vor juca.')
       } catch (err: any) {
         flash(`Eroare: ${err.message}`)
+      }
+    })
+  }
+
+  async function handleScheduleBlur(matchId: string) {
+    const s = schedules[matchId]
+    if (!s) return
+    startTransition(async () => {
+      try {
+        await updateBracketMatchSchedule(matchId, s.date || null, s.time || null)
+      } catch (err: any) {
+        flash(`Eroare orar: ${err.message}`)
       }
     })
   }
@@ -175,6 +194,7 @@ export default function BracketsAdminPage() {
                     <th className="px-4 py-2 text-left">Rundă</th>
                     <th className="px-4 py-2 text-left">Meci</th>
                     <th className="px-4 py-2 text-center">Status</th>
+                    <th className="px-4 py-2 text-left">Orar</th>
                     <th className="px-4 py-2 text-center">Scor</th>
                     <th className="px-4 py-2 text-center">Acțiuni</th>
                   </tr>
@@ -193,6 +213,28 @@ export default function BracketsAdminPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">{statusBadge(match.status)}</td>
+                      <td className="px-4 py-3">
+                        {match.status !== 'bye' && match.status !== 'pending' ? (
+                          <div className="flex flex-col gap-1">
+                            <input
+                              type="date"
+                              value={schedules[match.id]?.date ?? ''}
+                              onChange={(e) => setSchedules((prev) => ({ ...prev, [match.id]: { ...prev[match.id], date: e.target.value } }))}
+                              onBlur={() => handleScheduleBlur(match.id)}
+                              className="border border-gray-200 rounded px-1.5 py-1 text-xs text-gray-600 w-32"
+                            />
+                            <input
+                              type="time"
+                              value={schedules[match.id]?.time ?? ''}
+                              onChange={(e) => setSchedules((prev) => ({ ...prev, [match.id]: { ...prev[match.id], time: e.target.value } }))}
+                              onBlur={() => handleScheduleBlur(match.id)}
+                              className="border border-gray-200 rounded px-1.5 py-1 text-xs text-gray-600 w-20"
+                            />
+                          </div>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         {match.status !== 'pending' && match.status !== 'bye' ? (
                           <div className="flex items-center gap-1 justify-center">
@@ -262,7 +304,7 @@ export default function BracketsAdminPage() {
                   ))}
                   {bracketMatches.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-gray-400 text-sm">
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-400 text-sm">
                         Nu există meciuri în acest bracket
                       </td>
                     </tr>
