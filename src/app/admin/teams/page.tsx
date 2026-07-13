@@ -210,7 +210,7 @@ export default function TeamsAdminPage() {
               )}
 
               <div className="mt-4 p-3 bg-blue-50 rounded-lg text-xs text-blue-600">
-                💡 O grupă poate conține 3-6 echipe. Se generează câte un meci pentru fiecare pereche (round-robin).
+                💡 O grupă poate conține 3-7 echipe. Se generează câte un meci pentru fiecare pereche (round-robin).
               </div>
             </div>
           ) : (
