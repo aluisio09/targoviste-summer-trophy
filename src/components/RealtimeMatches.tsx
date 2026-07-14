@@ -4,44 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { GroupMatch } from '@/types'
 import { GroupMatchCard } from './MatchCard'
-
-const MONTHS = ['ian.','feb.','mar.','apr.','mai','iun.','iul.','aug.','sep.','oct.','nov.','dec.']
-
-type MatchGroup = { key: string; label: string; sortKey: string; matches: GroupMatch[] }
-
-function buildGroups(matches: GroupMatch[]): MatchGroup[] {
-  const sorted = [...matches].sort((a, b) => (a.match_number ?? 0) - (b.match_number ?? 0))
-  const map = new Map<string, MatchGroup>()
-
-  for (const m of sorted) {
-    const hasSchedule = !!(m.scheduled_date || m.scheduled_time)
-    let key: string, label: string, sortKey: string
-
-    if (hasSchedule) {
-      const dk = m.scheduled_date ?? ''
-      const tk = m.scheduled_time ?? ''
-      key = `${dk}|${tk}`
-      sortKey = `0:${key}` // meciuri programate primele, sortate cronologic
-      let lbl = ''
-      if (dk) {
-        const [, mo, d] = dk.split('-')
-        lbl = `${parseInt(d)} ${MONTHS[parseInt(mo) - 1]}`
-      }
-      if (tk) lbl += (lbl ? ' · ' : '') + tk.substring(0, 5)
-      label = lbl
-    } else {
-      const r = Math.ceil((m.match_number ?? 0) / 2)
-      key = `__r${r}`
-      sortKey = `1:${String(r).padStart(4, '0')}` // runde fără dată, după meciurile programate
-      label = `Runda ${r}`
-    }
-
-    if (!map.has(key)) map.set(key, { key, label, sortKey, matches: [] })
-    map.get(key)!.matches.push(m)
-  }
-
-  return Array.from(map.values()).sort((a, b) => a.sortKey.localeCompare(b.sortKey))
-}
+import { buildScheduleGroups } from '@/lib/schedule'
 
 interface Props {
   categoryId: string
@@ -77,7 +40,7 @@ export function RealtimeGroupMatches({ categoryId, initialMatches, groupId, grou
 
   if (matches.length === 0) return null
 
-  const groups = buildGroups(matches)
+  const groups = buildScheduleGroups(matches)
 
   return (
     <div>

@@ -1,20 +1,5 @@
 import type { GroupMatch, BracketMatch } from '@/types'
-
-const MONTHS = ['ian.', 'feb.', 'mar.', 'apr.', 'mai', 'iun.', 'iul.', 'aug.', 'sep.', 'oct.', 'nov.', 'dec.']
-
-function formatSchedule(date: string | null, time: string | null): string | null {
-  if (!date && !time) return null
-  let result = ''
-  if (date) {
-    const [, m, d] = date.split('-')
-    result += `${parseInt(d)} ${MONTHS[parseInt(m) - 1]}`
-  }
-  if (time) {
-    if (result) result += ' · '
-    result += time.substring(0, 5)
-  }
-  return result
-}
+import { formatSchedule } from '@/lib/schedule'
 
 interface GroupMatchCardProps {
   match: GroupMatch

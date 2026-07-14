@@ -4,37 +4,7 @@ import { useState, useEffect, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { generateGroupMatches, updateGroupMatchScore, setMatchLive, updateGroupMatchSchedule } from '@/app/actions/admin'
 import type { Category, Group, GroupMatch } from '@/types'
-
-const MONTHS = ['ian.','feb.','mar.','apr.','mai','iun.','iul.','aug.','sep.','oct.','nov.','dec.']
-
-type MatchGroup = { key: string; label: string; sortKey: string; matches: GroupMatch[] }
-
-function buildGroups(matches: GroupMatch[]): MatchGroup[] {
-  const sorted = [...matches].sort((a, b) => (a.match_number ?? 0) - (b.match_number ?? 0))
-  const map = new Map<string, MatchGroup>()
-  for (const m of sorted) {
-    const hasSchedule = !!(m.scheduled_date || m.scheduled_time)
-    let key: string, label: string, sortKey: string
-    if (hasSchedule) {
-      const dk = m.scheduled_date ?? ''
-      const tk = m.scheduled_time ?? ''
-      key = `${dk}|${tk}`
-      sortKey = `0:${key}`
-      let lbl = ''
-      if (dk) { const [, mo, d] = dk.split('-'); lbl = `${parseInt(d)} ${MONTHS[parseInt(mo) - 1]}` }
-      if (tk) lbl += (lbl ? ' · ' : '') + tk.substring(0, 5)
-      label = lbl
-    } else {
-      const r = Math.ceil((m.match_number ?? 0) / 2)
-      key = `__r${r}`
-      sortKey = `1:${String(r).padStart(4, '0')}`
-      label = `Runda ${r}`
-    }
-    if (!map.has(key)) map.set(key, { key, label, sortKey, matches: [] })
-    map.get(key)!.matches.push(m)
-  }
-  return Array.from(map.values()).sort((a, b) => a.sortKey.localeCompare(b.sortKey))
-}
+import { buildScheduleGroups } from '@/lib/schedule'
 
 export default function MatchesAdminPage() {
   const [categories, setCategories] = useState<Category[]>([])
@@ -212,7 +182,7 @@ export default function MatchesAdminPage() {
               </tr>
             </thead>
             <tbody>
-              {buildGroups(matches).flatMap(({ key, label, matches: roundMatches }) => [
+              {buildScheduleGroups(matches).flatMap(({ key, label, matches: roundMatches }) => [
                 <tr key={`rh-${key}`} className="bg-gray-50 border-t-2 border-gray-200">
                   <td colSpan={6} className="px-4 py-1.5">
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
