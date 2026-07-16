@@ -245,6 +245,18 @@ export async function updateBracketMatchSchedule(
 
 // ── Brackets ──────────────────────────────────────────────
 
+// Din primele 4 echipe (2 locuri 1 + 2 locuri 2), împerechează fiecare
+// câștigătoare de grupă cu locul 2 al UNEI GRUPE DIFERITE, indiferent de
+// clasarea după punctaj. Returnează [winner1, winner2, runnerUpForWinner2, runnerUpForWinner1]
+// (ordinea așteptată de generateBracketMatches pentru seeding-ul de bracket-4).
+function buildCrossGroupTop4(topChunk: TeamStanding[]): TeamStanding[] {
+  const [winner1, winner2, runnerA, runnerB] = topChunk
+  const runnerForWinner1 =
+    runnerA.team.group_id !== winner1.team.group_id ? runnerA : runnerB
+  const runnerForWinner2 = runnerForWinner1 === runnerA ? runnerB : runnerA
+  return [winner1, winner2, runnerForWinner2, runnerForWinner1]
+}
+
 export async function generateBrackets(categoryId: string) {
   await requireAdmin()
   const supabase = createServiceClient()
@@ -294,11 +306,13 @@ export async function generateBrackets(categoryId: string) {
   }
 
   // ── Bracket principal: primele 4 echipe din clasament global ──
-  // Seeding 1v3 și 2v4 (nu standard 1v4, 2v3):
-  //   Cu 1 grupă: semifinale loc1 vs loc3, loc2 vs loc4
-  //   Cu 2 grupe: best1stPlace vs best2ndPlace, 2nd1stPlace vs 2nd2ndPlace
-  // Truc: pasăm [r1, r2, r4, r3] → buildSeedOrder(4)=[1,4,2,3]
-  //   → arranged=[r1, r3, r2, r4] → Meci1: r1 vs r3, Meci2: r2 vs r4
+  // Cu mai multe grupe, semifinalele TREBUIE să opună echipe din grupe diferite:
+  //   Semifinala 1: Locul 1 Grupa A vs Locul 2 Grupa B
+  //   Semifinala 2: Locul 1 Grupa B vs Locul 2 Grupa A
+  // Nu ne bazăm pe clasarea după punctaj (r3 vs r4), pentru că ambele echipe
+  // ale unei grupe mai puternice ar putea ajunge altfel în aceeași semifinală.
+  // Truc: pasăm [r1, r2, runnerUp2, runnerUp1] → buildSeedOrder(4)=[1,4,2,3]
+  //   → arranged=[r1, runnerUp1, r2, runnerUp2] → Meci1: r1 vs runnerUp1, Meci2: r2 vs runnerUp2
   // 3 echipe: Final r1 vs r2, r3 bye — NU un bracket de 4 cu r1 bye+r2vr3
   const topCount = globalRanking.length === 3 ? 2 : Math.min(4, globalRanking.length)
   const topChunk = globalRanking.slice(0, topCount)
@@ -306,9 +320,7 @@ export async function generateBrackets(categoryId: string) {
   const topName = topChunk.length === 1 ? `Locul 1` : `Locurile 1-${topEnd}`
 
   const topSeeded: TeamStanding[] =
-    topChunk.length === 4
-      ? [topChunk[0], topChunk[1], topChunk[3], topChunk[2]]
-      : topChunk
+    topChunk.length === 4 ? buildCrossGroupTop4(topChunk) : topChunk
 
   const { data: topBracket, error: topErr } = await supabase
     .from('brackets')
